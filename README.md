@@ -1,14 +1,25 @@
 Wheel-of-Fortune Memory Allocator
 =================================
 
-This has turned into a very interesting excercise in algorithms and data
-structures. It was extracted from Wireshark's new 'wmem' framework.
+A little while ago, the [Wireshark Project](https://www.wireshark.org/) was in
+need of a new memory management framework to replace its aging 'emem' framework.
+Nothing available seemed to suit, so I (mostly) wrote one from scratch, called
+[wmem](https://anonsvn.wireshark.org/viewvc/trunk/doc/README.wmem?view=markup).
+
+The majority of wmem was bog-standard memory-pool code, but there was one
+component that ended up turning into a *very* interesting exercise in
+algorithms and data structures. Within wmem it is simply known as the "block"
+allocator, but it was interesting enough that I extracted it from Wireshark,
+and made it available stand-alone here.
+
+It is one C source file that uses nothing but bare-bones standard C90, so it
+should compile on basically any platform in existence.
 
 History
 -------
 
-Version 1 of this allocator was embedded in the original emem framework. It
-didn't have to handle realloc or free, so it was very simple: it just grabbed
+Version 1 of this allocator was embedded in Wireshark's original emem framework.
+It didn't have to handle realloc or free, so it was very simple: it just grabbed
 a block from the OS and served allocations sequentially out of that until it
 ran out, then allocated a new block. The old block was never revisited, so
 it generally had a bit of wasted space at the end, but the waste was
@@ -21,16 +32,16 @@ free in wmem. The original version simply didn't save enough metadata to do
 this, so I added a layer on top to make it possible. The primary principle
 was the same (allocate sequentially out of big blocks) with a bit of extra
 magic. Allocations were still fast constant-time, and frees were as well.
-Large parts of that design are still present in this one, but for more
-details see older versions of this file from git or svn.
+Some parts of that design are still present in this one. For more
+details see older versions of the wmem block allocator from Wireshark's
+subversion repository.
 
 Version 3 of this allocator was written to address some issues that
 eventually showed up with version 2 under real-world usage. Specifically,
 version 2 dealt very poorly with memory fragmentation, almost never reusing
 freed blocks and choosing to just keep allocating from the master block
-instead. This led to particularly poor behaviour under the tick-tock loads
-(alloc/free/alloc/free or alloc/alloc/free/alloc/alloc/free/ or ...) that
-showed up in a couple of different protocol dissectors (TCP, Kafka).
+instead. This led to particularly poor behaviour under certain allocation
+patterns that showed up a lot in Wireshark.
 
 Blocks and Chunks
 -----------------
@@ -40,13 +51,13 @@ large OS-level blocks. Each block has a short embedded header used to
 maintain a doubly-linked list of all blocks (used or not) currently owned by
 the allocator. Each block is divided into chunks, which represent allocations
 and free sections (a block is initialized with one large, free, chunk). Each
-chunk is prefixed with a wmem_block_chunk_t structure, which is a short
-metadata header (8 bytes, regardless of 32 or 64-bit architecture unless
-alignment requires it to be padded) that contains the length of the chunk,
-the length of the previous chunk, a flag marking the chunk as free or used,
-and a flag marking the last chunk in a block. This serves to implement an
-inline sequential doubly-linked list of all the chunks in each block. A block
-with three chunks might look something like this:
+chunk is prefixed with a `wof_chunk_hdr_t` structure, which is a short
+metadata header (typically 8 bytes, depending on architecture and alignment
+requirements) that contains the length of the chunk, the length of the previous
+chunk, a flag marking the chunk as free or used, and a flag marking the last
+chunk in a block. This serves to implement an inline sequential doubly-linked
+list of all the chunks in each block. A block with three chunks might look
+something like this:
 
 ```
          0                    _________________________
@@ -68,7 +79,7 @@ applying this operation consistently prevents us ever having consecutive
 free chunks.
 
 Free chunks (because they are not being used for anything else) each store an
-additional pair of pointers (see the wmem_block_free_t structure) that form
+additional pair of pointers (see the `wof_free_hdr_t` structure) that form
 the backbone of the data structures used to track free chunks.
 
 Master and Recycler
@@ -80,15 +91,15 @@ a stack.
 
 The master stack is only populated by chunks from new OS-level blocks,
 so every chunk in this list is guaranteed to be able to serve any allocation
-request (the allocator will not serve requests larger than its block size).
-The chunk at the head of the master list shrinks as it serves requests. When
-it is too small to serve the current request, it is popped and inserted into
-the recycler. If the master list is empty, a new OS-level block is allocated,
-and its chunk is pushed onto the master stack.
+request (the allocator has special 'jumbo' logic to handle requests larger than
+its block size). The chunk at the head of the master list shrinks as it serves
+requests. When it is too small to serve the current request, it is popped and
+inserted into the recycler. If the master list is empty, a new OS-level block
+is allocated, and its chunk is pushed onto the master stack.
 
 The recycler is populated by 'leftovers' from the master, as well as any
-chunks that were returned to the allocator via a call to free(). Although the
-recycler is circular, we will refer to the element referenced from the
+chunks that were returned to the allocator via a call to `wof_free()`. Although
+the recycler is circular, we will refer to the element referenced from the
 allocator as the 'head' of the list for convenience. The primary operation on
 the recycler is called cycling it. In this operation, the head is compared
 with its clockwise neighbour. If the neighbour is as large or larger, it
