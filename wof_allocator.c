@@ -65,12 +65,12 @@ typedef struct _wof_chunk_hdr_t {
         (WOF_BLOCK_HEADER_SIZE + WOF_CHUNK_HEADER_SIZE))
 
 /* other handy chunk macros */
-#define WOF_CHUNK_TO_DATA(CHUNK) ((void*)((unsigned char*)(CHUNK) + WOF_CHUNK_HEADER_SIZE))
-#define WOF_DATA_TO_CHUNK(DATA) ((wof_chunk_hdr_t*)((unsigned char*)(DATA) - WOF_CHUNK_HEADER_SIZE))
+#define WOF_CHUNK_TO_DATA(CHUNK)  ((void*)((unsigned char*)(CHUNK) + WOF_CHUNK_HEADER_SIZE))
+#define WOF_DATA_TO_CHUNK(DATA)   ((wof_chunk_hdr_t*)((unsigned char*)(DATA) - WOF_CHUNK_HEADER_SIZE))
 #define WOF_CHUNK_DATA_LEN(CHUNK) ((CHUNK)->len - WOF_CHUNK_HEADER_SIZE)
 
 /* some handy block macros */
-#define WOF_BLOCK_HEADER_SIZE WOF_ALIGN_SIZE(sizeof(wof_block_hdr_t))
+#define WOF_BLOCK_HEADER_SIZE     WOF_ALIGN_SIZE(sizeof(wof_block_hdr_t))
 #define WOF_BLOCK_TO_CHUNK(BLOCK) ((wof_chunk_hdr_t*)((unsigned char*)(BLOCK) + WOF_BLOCK_HEADER_SIZE))
 #define WOF_CHUNK_TO_BLOCK(CHUNK) ((wof_block_hdr_t*)((unsigned char*)(CHUNK) - WOF_BLOCK_HEADER_SIZE))
 
@@ -83,7 +83,7 @@ typedef struct _wof_free_hdr_t {
 #define WOF_GET_FREE(CHUNK) ((wof_free_hdr_t*)WOF_CHUNK_TO_DATA(CHUNK))
 
 struct _wof_allocator_t {
-    wof_block_hdr_t   *block_list;
+    wof_block_hdr_t *block_list;
     wof_chunk_hdr_t *master_head;
     wof_chunk_hdr_t *recycler_head;
 };
@@ -122,7 +122,7 @@ wof_cycle_recycler(wof_allocator_t *allocator)
 /* Adds a chunk from the recycler. */
 static void
 wof_add_to_recycler(wof_allocator_t *allocator,
-                           wof_chunk_hdr_t *chunk)
+                    wof_chunk_hdr_t *chunk)
 {
     wof_free_hdr_t *free_chunk;
 
@@ -154,7 +154,7 @@ wof_add_to_recycler(wof_allocator_t *allocator,
 /* Removes a chunk from the recycler. */
 static void
 wof_remove_from_recycler(wof_allocator_t *allocator,
-                                wof_chunk_hdr_t *chunk)
+                         wof_chunk_hdr_t *chunk)
 {
     wof_free_hdr_t *free_chunk;
 
@@ -179,7 +179,7 @@ wof_remove_from_recycler(wof_allocator_t *allocator,
 /* Pushes a chunk onto the master stack. */
 static void
 wof_push_master(wof_allocator_t *allocator,
-                       wof_chunk_hdr_t *chunk)
+                wof_chunk_hdr_t *chunk)
 {
     wof_free_hdr_t *free_chunk;
 
@@ -218,7 +218,7 @@ wof_pop_master(wof_allocator_t *allocator)
  */
 static void
 wof_merge_free(wof_allocator_t *allocator,
-                      wof_chunk_hdr_t *chunk)
+               wof_chunk_hdr_t *chunk)
 {
     wof_chunk_hdr_t *tmp;
     wof_chunk_hdr_t *left_free  = NULL;
@@ -294,8 +294,8 @@ wof_merge_free(wof_allocator_t *allocator,
  * replaces the input chunk in whichever list it originally inhabited. */
 static void
 wof_split_free_chunk(wof_allocator_t *allocator,
-                            wof_chunk_hdr_t *chunk,
-                            const size_t size)
+                     wof_chunk_hdr_t *chunk,
+                     const size_t size)
 {
     wof_chunk_hdr_t *extra;
     wof_free_hdr_t  *old_blk, *new_blk;
@@ -387,8 +387,8 @@ wof_split_free_chunk(wof_allocator_t *allocator,
  * recycler. */
 static void
 wof_split_used_chunk(wof_allocator_t *allocator,
-                            wof_chunk_hdr_t *chunk,
-                            const size_t size)
+                     wof_chunk_hdr_t *chunk,
+                     const size_t size)
 {
     wof_chunk_hdr_t *extra;
     size_t aligned_size, available;
@@ -439,7 +439,7 @@ wof_split_used_chunk(wof_allocator_t *allocator,
  * that it owns. */
 static void
 wof_add_to_block_list(wof_allocator_t *allocator,
-                             wof_block_hdr_t *block)
+                      wof_block_hdr_t *block)
 {
     block->prev = NULL;
     block->next = allocator->block_list;
@@ -453,7 +453,7 @@ wof_add_to_block_list(wof_allocator_t *allocator,
  * blocks that it owns. */
 static void
 wof_remove_from_block_list(wof_allocator_t *allocator,
-                                  wof_block_hdr_t *block)
+                           wof_block_hdr_t *block)
 {
     if (block->prev) {
         block->prev->next = block->next;
@@ -471,7 +471,7 @@ wof_remove_from_block_list(wof_allocator_t *allocator,
  * adds that chunk to the free list. */
 static void
 wof_init_block(wof_allocator_t *allocator,
-                      wof_block_hdr_t *block)
+               wof_block_hdr_t *block)
 {
     wof_chunk_hdr_t *chunk;
 
@@ -543,7 +543,7 @@ wof_alloc_jumbo(wof_allocator_t *allocator, const size_t size)
 /* Frees special 'jumbo' blocks of sizes that won't fit normally. */
 static void
 wof_free_jumbo(wof_allocator_t *allocator,
-                      wof_chunk_hdr_t *chunk)
+               wof_chunk_hdr_t *chunk)
 {
     wof_block_hdr_t *block;
 
@@ -557,8 +557,8 @@ wof_free_jumbo(wof_allocator_t *allocator,
 /* Reallocs special 'jumbo' blocks of sizes that won't fit normally. */
 static void *
 wof_realloc_jumbo(wof_allocator_t *allocator,
-                         wof_chunk_hdr_t *chunk,
-                         const size_t size)
+                  wof_chunk_hdr_t *chunk,
+                  const size_t size)
 {
     wof_block_hdr_t *block;
 
@@ -591,7 +591,7 @@ wof_realloc_jumbo(wof_allocator_t *allocator,
 void *
 wof_alloc(wof_allocator_t *allocator, const size_t size)
 {
-    wof_chunk_hdr_t     *chunk;
+    wof_chunk_hdr_t *chunk;
 
     if (size > WOF_BLOCK_MAX_ALLOC_SIZE) {
         return wof_alloc_jumbo(allocator, size);
@@ -659,7 +659,7 @@ wof_free(wof_allocator_t *allocator, void *ptr)
 void *
 wof_realloc(wof_allocator_t *allocator, void *ptr, const size_t size)
 {
-    wof_chunk_hdr_t     *chunk;
+    wof_chunk_hdr_t *chunk;
 
     chunk = WOF_DATA_TO_CHUNK(ptr);
 
@@ -736,8 +736,8 @@ wof_realloc(wof_allocator_t *allocator, void *ptr, const size_t size)
 void
 wof_free_all(wof_allocator_t *allocator)
 {
-    wof_block_hdr_t       *cur;
-    wof_chunk_hdr_t     *chunk;
+    wof_block_hdr_t *cur;
+    wof_chunk_hdr_t *chunk;
 
     /* the existing free lists are entirely irrelevant */
     allocator->master_head   = NULL;
@@ -763,7 +763,7 @@ wof_free_all(wof_allocator_t *allocator)
 void
 wof_gc(wof_allocator_t *allocator)
 {
-    wof_block_hdr_t   *cur, *next;
+    wof_block_hdr_t *cur, *next;
     wof_chunk_hdr_t *chunk;
     wof_free_hdr_t  *free_chunk;
 
