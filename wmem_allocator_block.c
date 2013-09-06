@@ -5,11 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <glib.h>
-
-#include "wmem_core.h"
-#include "wmem_allocator.h"
-
 /* https://mail.gnome.org/archives/gtk-devel-list/2004-December/msg00091.html
  * The 2*sizeof(size_t) alignment here is borrowed from GNU libc, so it should
  * be good most everywhere. It is more conservative than is needed on some
@@ -87,156 +82,6 @@ typedef struct _wmem_block_allocator_t {
     wmem_block_chunk_t *recycler_head;
 } wmem_block_allocator_t;
 
-/* DEBUG AND TEST */
-static int
-wmem_block_verify_block(wmem_block_hdr_t *block)
-{
-    int                 total_free_space = 0;
-    guint32             total_len;
-    wmem_block_chunk_t *chunk;
-
-    chunk     = WMEM_BLOCK_TO_CHUNK(block);
-    total_len = WMEM_BLOCK_HEADER_SIZE;
-
-    if (chunk->jumbo) {
-        /* We can tell nothing else about jumbo chunks except that they are
-         * always used. */
-        return 0;
-    }
-
-    g_assert(chunk->prev == 0);
-
-    do {
-        total_len += chunk->len;
-
-        g_assert(chunk->len >= WMEM_CHUNK_HEADER_SIZE);
-        g_assert(!chunk->jumbo);
-
-        if (WMEM_CHUNK_NEXT(chunk)) {
-            g_assert(chunk->len == WMEM_CHUNK_NEXT(chunk)->prev);
-        }
-
-        if (!chunk->used &&
-                WMEM_CHUNK_DATA_LEN(chunk) >= sizeof(wmem_block_free_t)) {
-
-            total_free_space += chunk->len;
-
-            if (!chunk->last) {
-                g_assert(WMEM_GET_FREE(chunk)->next);
-                g_assert(WMEM_GET_FREE(chunk)->prev);
-            }
-        }
-
-        chunk = WMEM_CHUNK_NEXT(chunk);
-    } while (chunk);
-
-    g_assert(total_len == WMEM_BLOCK_SIZE);
-
-    return total_free_space;
-}
-
-static int
-wmem_block_verify_master_list(wmem_block_allocator_t *allocator)
-{
-    wmem_block_chunk_t *cur;
-    wmem_block_free_t  *cur_free;
-    int                 free_space = 0;
-
-    cur = allocator->master_head;
-    if (!cur) {
-        return 0;
-    }
-
-    g_assert(WMEM_GET_FREE(cur)->prev == NULL);
-
-    while (cur) {
-        free_space += cur->len;
-
-        cur_free = WMEM_GET_FREE(cur);
-
-        g_assert(! cur->used);
-
-        if (cur_free->next) {
-            g_assert(WMEM_GET_FREE(cur_free->next)->prev == cur);
-        }
-
-        if (cur != allocator->master_head) {
-            g_assert(cur->len == WMEM_BLOCK_SIZE);
-        }
-
-        cur = cur_free->next;
-    }
-
-    return free_space;
-}
-
-static int
-wmem_block_verify_recycler(wmem_block_allocator_t *allocator)
-{
-    wmem_block_chunk_t *cur;
-    wmem_block_free_t  *cur_free;
-    int                 free_space = 0;
-
-    cur = allocator->recycler_head;
-    if (!cur) {
-        return 0;
-    }
-
-    do {
-        free_space += cur->len;
-
-        cur_free = WMEM_GET_FREE(cur);
-
-        g_assert(! cur->used);
-
-        g_assert(cur_free->prev);
-        g_assert(cur_free->next);
-
-        g_assert(WMEM_GET_FREE(cur_free->prev)->next == cur);
-        g_assert(WMEM_GET_FREE(cur_free->next)->prev == cur);
-
-        cur = cur_free->next;
-    } while (cur != allocator->recycler_head);
-
-    return free_space;
-}
-
-void
-wmem_block_verify(wmem_allocator_t *allocator)
-{
-    wmem_block_hdr_t       *cur;
-    wmem_block_allocator_t *private_allocator;
-    int                     master_free, recycler_free, chunk_free = 0;
-
-    /* Normally it would be bad for an allocator helper function to depend
-     * on receiving the right type of allocator, but this is for testing only
-     * and is not part of any real API. */
-    g_assert(allocator->type == WMEM_ALLOCATOR_BLOCK);
-
-    private_allocator = (wmem_block_allocator_t*) allocator->private_data;
-
-    if (private_allocator->block_list == NULL) {
-        g_assert(! private_allocator->master_head);
-        g_assert(! private_allocator->recycler_head);
-        return;
-    }
-
-    master_free   = wmem_block_verify_master_list(private_allocator);
-    recycler_free = wmem_block_verify_recycler(private_allocator);
-
-    cur = private_allocator->block_list;
-    g_assert(cur->prev == NULL);
-    while (cur) {
-        if (cur->next) {
-            g_assert(cur->next->prev == cur);
-        }
-        chunk_free += wmem_block_verify_block(cur);
-        cur = cur->next;
-    }
-
-    g_assert(chunk_free == master_free + recycler_free);
-}
-
 /* MASTER/RECYCLER HELPERS */
 
 /* Cycles the recycler. See the design notes at the top of this file for more
@@ -275,8 +120,6 @@ wmem_block_add_to_recycler(wmem_block_allocator_t *allocator,
 {
     wmem_block_free_t *free_chunk;
 
-    g_assert(! chunk->used);
-
     if (WMEM_CHUNK_DATA_LEN(chunk) < sizeof(wmem_block_free_t)) {
         return;
     }
@@ -309,15 +152,10 @@ wmem_block_remove_from_recycler(wmem_block_allocator_t *allocator,
 {
     wmem_block_free_t *free_chunk;
 
-    g_assert (! chunk->used);
-
     free_chunk = WMEM_GET_FREE(chunk);
-
-    g_assert(free_chunk->prev && free_chunk->next);
 
     if (free_chunk->prev == chunk && free_chunk->next == chunk) {
         /* Only one item in recycler, just empty it. */
-        g_assert(allocator->recycler_head == chunk);
         allocator->recycler_head = NULL;
     }
     else {
@@ -379,8 +217,6 @@ wmem_block_merge_free(wmem_block_allocator_t *allocator,
     wmem_block_chunk_t *tmp;
     wmem_block_chunk_t *left_free  = NULL;
     wmem_block_chunk_t *right_free = NULL;
-
-    g_assert(!chunk->used);
 
     /* Check the chunk to our right. If it is free, merge it into our current
      * chunk. If it is big enough to hold a free-header, save it for later (we
@@ -459,9 +295,6 @@ wmem_block_split_free_chunk(wmem_block_allocator_t *allocator,
     wmem_block_free_t  *old_blk, *new_blk;
     size_t aligned_size, available;
     gboolean last;
-
-    g_assert(!chunk->used);
-    g_assert(WMEM_CHUNK_DATA_LEN(chunk) >= size);
 
     aligned_size = WMEM_ALIGN_SIZE(size) + WMEM_CHUNK_HEADER_SIZE;
 
@@ -554,9 +387,6 @@ wmem_block_split_used_chunk(wmem_block_allocator_t *allocator,
     wmem_block_chunk_t *extra;
     size_t aligned_size, available;
     gboolean last;
-
-    g_assert(chunk->used);
-    g_assert(WMEM_CHUNK_DATA_LEN(chunk) >= size);
 
     aligned_size = WMEM_ALIGN_SIZE(size) + WMEM_CHUNK_HEADER_SIZE;
 
@@ -773,19 +603,8 @@ wmem_block_alloc(void *private_data, const size_t size)
         chunk = allocator->master_head;
     }
 
-    /* if our chunk is used, something is wrong */
-    g_assert(! chunk->used);
-    /* if we still don't have the space at this point, something is wrong */
-    g_assert(size <= WMEM_CHUNK_DATA_LEN(chunk));
-
     /* Split our chunk into two to preserve any trailing free space */
     wmem_block_split_free_chunk(allocator, chunk, size);
-
-    /* if our split reduced our size too much, something went wrong */
-    g_assert(size <= WMEM_CHUNK_DATA_LEN(chunk));
-    /* the resulting chunk should not be in either free list */
-    g_assert(chunk != allocator->master_head);
-    g_assert(chunk != allocator->recycler_head);
 
     /* Now cycle the recycler */
     if (allocator->recycler_head) {
@@ -812,8 +631,6 @@ wmem_block_free(void *private_data, void *ptr)
         return;
     }
 
-    g_assert(chunk->used);
-
     /* mark it as unused */
     chunk->used = FALSE;
 
@@ -833,8 +650,6 @@ wmem_block_realloc(void *private_data, void *ptr, const size_t size)
     if (chunk->jumbo) {
         return wmem_block_realloc_jumbo(allocator, chunk, size);
     }
-
-    g_assert(chunk->used);
 
     if (size > WMEM_CHUNK_DATA_LEN(chunk)) {
         /* grow */
