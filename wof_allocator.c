@@ -2,7 +2,7 @@
  * Copyright 2013, Evan Huus <eapache@gmail.com>
  */
 
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define BOOL int
@@ -493,7 +493,12 @@ wof_new_block(wof_allocator_t *allocator)
     wof_block_hdr_t *block;
 
     /* allocate the new block and add it to the block list */
-    block = (wof_block_hdr_t *)wmem_alloc(NULL, WOF_BLOCK_SIZE);
+    block = (wof_block_hdr_t *)malloc(WOF_BLOCK_SIZE);
+
+    if (block == NULL) {
+        return;
+    }
+
     wof_add_to_block_list(allocator, block);
 
     /* initialize it */
@@ -510,9 +515,13 @@ wof_alloc_jumbo(wof_allocator_t *allocator, const size_t size)
     wof_chunk_hdr_t *chunk;
 
     /* allocate a new block of exactly the right size */
-    block = (wof_block_hdr_t *) wmem_alloc(NULL, size
+    block = (wof_block_hdr_t *) malloc(size
             + WOF_BLOCK_HEADER_SIZE
             + WOF_CHUNK_HEADER_SIZE);
+
+    if (block == NULL) {
+        return NULL;
+    }
 
     /* add it to the block list */
     wof_add_to_block_list(allocator, block);
@@ -540,7 +549,7 @@ wof_free_jumbo(wof_allocator_t *allocator,
 
     wof_remove_from_block_list(allocator, block);
 
-    wmem_free(NULL, block);
+    free(block);
 }
 
 /* Reallocs special 'jumbo' blocks of sizes that won't fit normally. */
@@ -553,9 +562,13 @@ wof_realloc_jumbo(wof_allocator_t *allocator,
 
     block = WOF_CHUNK_TO_BLOCK(chunk);
 
-    block = (wof_block_hdr_t *) wmem_realloc(NULL, block, size
+    block = (wof_block_hdr_t *) realloc(block, size
             + WOF_BLOCK_HEADER_SIZE
             + WOF_CHUNK_HEADER_SIZE);
+
+    if (block == NULL) {
+        return NULL;
+    }
 
     if (block->next) {
         block->next->prev = block;
@@ -573,10 +586,9 @@ wof_realloc_jumbo(wof_allocator_t *allocator,
 
 /* API */
 
-static void *
-wof_alloc(void *private_data, const size_t size)
+void *
+wof_alloc(wof_allocator_t *allocator, const size_t size)
 {
-    wof_allocator_t *allocator = (wof_allocator_t*) private_data;
     wof_chunk_hdr_t     *chunk;
 
     if (size > WOF_BLOCK_MAX_ALLOC_SIZE) {
@@ -622,11 +634,10 @@ wof_alloc(void *private_data, const size_t size)
     return WOF_CHUNK_TO_DATA(chunk);
 }
 
-static void
-wof_free(void *private_data, void *ptr)
+void
+wof_free(wof_allocator_t *allocator, void *ptr)
 {
-    wof_allocator_t *allocator = (wof_allocator_t*) private_data;
-    wof_chunk_hdr_t     *chunk;
+    wof_chunk_hdr_t *chunk;
 
     chunk = WOF_DATA_TO_CHUNK(ptr);
 
@@ -643,10 +654,9 @@ wof_free(void *private_data, void *ptr)
     wof_merge_free(allocator, chunk);
 }
 
-static void *
-wof_realloc(void *private_data, void *ptr, const size_t size)
+void *
+wof_realloc(wof_allocator_t *allocator, void *ptr, const size_t size)
 {
-    wof_allocator_t *allocator = (wof_allocator_t*) private_data;
     wof_chunk_hdr_t     *chunk;
 
     chunk = WOF_DATA_TO_CHUNK(ptr);
@@ -703,9 +713,9 @@ wof_realloc(void *private_data, void *ptr, const size_t size)
             /* no room to grow, need to alloc, copy, free */
             void *newptr;
 
-            newptr = wof_alloc(private_data, size);
+            newptr = wof_alloc(allocator, size);
             memcpy(newptr, ptr, WOF_CHUNK_DATA_LEN(chunk));
-            wof_free(private_data, ptr);
+            wof_free(allocator, ptr);
 
             return newptr;
         }
@@ -721,10 +731,9 @@ wof_realloc(void *private_data, void *ptr, const size_t size)
     return ptr;
 }
 
-static void
-wof_free_all(void *private_data)
+void
+wof_free_all(wof_allocator_t *allocator)
 {
-    wof_allocator_t *allocator = (wof_allocator_t*) private_data;
     wof_block_hdr_t       *cur;
     wof_chunk_hdr_t     *chunk;
 
@@ -740,7 +749,7 @@ wof_free_all(void *private_data)
         if (chunk->jumbo) {
             wof_remove_from_block_list(allocator, cur);
             cur = cur->next;
-            wmem_free(NULL, WOF_CHUNK_TO_BLOCK(chunk));
+            free(WOF_CHUNK_TO_BLOCK(chunk));
         }
         else {
             wof_init_block(allocator, cur);
@@ -749,10 +758,9 @@ wof_free_all(void *private_data)
     }
 }
 
-static void
-wof_gc(void *private_data)
+void
+wof_gc(wof_allocator_t *allocator)
 {
-    wof_allocator_t *allocator = (wof_allocator_t*) private_data;
     wof_block_hdr_t   *cur, *next;
     wof_chunk_hdr_t *chunk;
     wof_free_hdr_t  *free_chunk;
@@ -788,7 +796,7 @@ wof_gc(void *private_data)
             else if (allocator->master_head == chunk) {
                 allocator->master_head = free_chunk->next;
             }
-            wmem_free(NULL, cur);
+            free(cur);
         }
         else {
             /* part of this block is used, so add it to the new block list */
@@ -799,37 +807,34 @@ wof_gc(void *private_data)
     }
 }
 
-static void
-wof_allocator_cleanup(void *private_data)
+void
+wof_allocator_destroy(wof_allocator_t *allocator)
 {
-    /* wmem guarantees that free_all() is called directly before this, so
-     * calling gc will return all our blocks to the OS automatically */
-    wof_gc(private_data);
+    /* The combination of free_all and gc returns all our memory to the OS
+     * except for the struct itself */
+    wof_free_all(allocator);
+    wof_gc(allocator);
 
-    /* then just free the allocator structs */
-    wmem_free(NULL, private_data);
+    /* then just free the struct */
+    free(allocator);
 }
 
-void
-wof_allocator_init(wmem_allocator_t *allocator)
+wof_allocator_t *
+wof_allocator_new()
 {
-    wof_allocator_t *block_allocator;
+    wof_allocator_t *allocator;
 
-    block_allocator = wmem_new(NULL, wof_allocator_t);
+    allocator = (wof_allocator_t *)malloc(sizeof(wof_allocator_t));
 
-    allocator->alloc   = &wof_alloc;
-    allocator->realloc = &wof_realloc;
-    allocator->free    = &wof_free;
+    if (allocator == NULL) {
+        return NULL;
+    }
 
-    allocator->free_all = &wof_free_all;
-    allocator->gc       = &wof_gc;
-    allocator->cleanup  = &wof_allocator_cleanup;
+    allocator->block_list    = NULL;
+    allocator->master_head   = NULL;
+    allocator->recycler_head = NULL;
 
-    allocator->private_data = (void*) block_allocator;
-
-    block_allocator->block_list    = NULL;
-    block_allocator->master_head   = NULL;
-    block_allocator->recycler_head = NULL;
+    return allocator;
 }
 
 /*
