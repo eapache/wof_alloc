@@ -90,8 +90,7 @@ struct _wof_allocator_t {
 
 /* MASTER/RECYCLER HELPERS */
 
-/* Cycles the recycler. See the design notes at the top of this file for more
- * details. */
+/* Cycles the recycler. See the design notes in the readme for more details. */
 static void
 wof_cycle_recycler(wof_allocator_t *allocator)
 {
@@ -621,6 +620,11 @@ wof_alloc(wof_allocator_t *allocator, const size_t size)
         chunk = allocator->master_head;
     }
 
+    if (!chunk) {
+        /* We don't have enough, and the OS wouldn't give us more. */
+        return NULL;
+    }
+
     /* Split our chunk into two to preserve any trailing free space */
     wof_split_free_chunk(allocator, chunk, size);
 
@@ -716,6 +720,9 @@ wof_realloc(wof_allocator_t *allocator, void *ptr, const size_t size)
             void *newptr;
 
             newptr = wof_alloc(allocator, size);
+            if (newptr == NULL) {
+                return NULL;
+            }
             memcpy(newptr, ptr, WOF_CHUNK_DATA_LEN(chunk));
             wof_free(allocator, ptr);
 
