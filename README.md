@@ -1,12 +1,11 @@
-wof_alloc
-=========
-
 Wheel-of-Fortune Memory Allocator
+=================================
 
 This has turned into a very interesting excercise in algorithms and data
-structures.
+structures. It was extracted from Wireshark's new 'wmem' framework.
 
-HISTORY
+History
+-------
 
 Version 1 of this allocator was embedded in the original emem framework. It
 didn't have to handle realloc or free, so it was very simple: it just grabbed
@@ -33,7 +32,8 @@ instead. This led to particularly poor behaviour under the tick-tock loads
 (alloc/free/alloc/free or alloc/alloc/free/alloc/alloc/free/ or ...) that
 showed up in a couple of different protocol dissectors (TCP, Kafka).
 
-BLOCKS AND CHUNKS
+Blocks and Chunks
+-----------------
 
 As in previous versions, allocations typically happen sequentially out of
 large OS-level blocks. Each block has a short embedded header used to
@@ -70,7 +70,8 @@ Free chunks (because they are not being used for anything else) each store an
 additional pair of pointers (see the wmem_block_free_t structure) that form
 the backbone of the data structures used to track free chunks.
 
-MASTER AND RECYCLER
+Master and Recycler
+-------------------
 
 The extra pair of pointers in free chunks are used to build two doubly-linked
 lists: the master and the recycler. The recycler is circular, the master is
@@ -101,7 +102,8 @@ operation has the following properties:
    the head (for a list with n items, n iterations guarantees that the
    largest chunk will be the head).
 
-ALLOCATING
+Allocating
+----------
 
 When an allocation request is received, the allocator first attempts to
 satisfy it with the chunk at the head of the recycler. If that does not
