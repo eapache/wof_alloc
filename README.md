@@ -48,13 +48,14 @@ and a flag marking the last chunk in a block. This serves to implement an
 inline sequential doubly-linked list of all the chunks in each block. A block
 with three chunks might look something like this:
 
+```
          0                    _________________________
          ^      ___________  /        ______________   \       __________
 ||---||--|-----/-----------||--------/--------------||--\-----/----------||
 ||hdr|| prv | len |  body  || prv | len |   body    || prv | len | body  ||
 ||---||--------------------||--/--------------------||-------------------||
        \______________________/
-
+```
 
 When allocating, a free chunk is found (more on that later) and split into
 two chunks: the first of the requested size and the second containing any
