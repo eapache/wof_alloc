@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "wof_allocator.h"
+
 #define BOOL int
 #define TRUE 1
 #define FALSE 0
@@ -80,11 +82,11 @@ typedef struct _wof_free_hdr_t {
 /* Handy macro for accessing the free-header of a chunk */
 #define WOF_GET_FREE(CHUNK) ((wof_free_hdr_t*)WOF_CHUNK_TO_DATA(CHUNK))
 
-typedef struct _wof_allocator_t {
+struct _wof_allocator_t {
     wof_block_hdr_t   *block_list;
     wof_chunk_hdr_t *master_head;
     wof_chunk_hdr_t *recycler_head;
-} wof_allocator_t;
+};
 
 /* MASTER/RECYCLER HELPERS */
 
