@@ -587,6 +587,10 @@ wof_realloc_jumbo(wof_allocator_t *allocator,
 
 /* API */
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 void *
 wof_alloc(wof_allocator_t *allocator, const size_t size)
 {
@@ -861,6 +865,10 @@ wof_allocator_new()
 
     return allocator;
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 /*
  * Editor modelines  -  http://www.wireshark.org/tools/modelines.html

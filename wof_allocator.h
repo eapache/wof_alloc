@@ -7,6 +7,10 @@
 
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 typedef struct _wof_allocator_t wof_allocator_t;
 
 void *
@@ -29,5 +33,9 @@ wof_allocator_destroy(wof_allocator_t *allocator);
 
 wof_allocator_t *
 wof_allocator_new();
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* __WOF_ALLOCATOR_H__ */
