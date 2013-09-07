@@ -592,7 +592,10 @@ wof_alloc(wof_allocator_t *allocator, const size_t size)
 {
     wof_chunk_hdr_t *chunk;
 
-    if (size > WOF_BLOCK_MAX_ALLOC_SIZE) {
+    if (size == 0) {
+        return NULL;
+    }
+    else if (size > WOF_BLOCK_MAX_ALLOC_SIZE) {
         return wof_alloc_jumbo(allocator, size);
     }
 
@@ -645,6 +648,10 @@ wof_free(wof_allocator_t *allocator, void *ptr)
 {
     wof_chunk_hdr_t *chunk;
 
+    if (ptr == NULL) {
+        return;
+    }
+
     chunk = WOF_DATA_TO_CHUNK(ptr);
 
     if (chunk->jumbo) {
@@ -664,6 +671,15 @@ void *
 wof_realloc(wof_allocator_t *allocator, void *ptr, const size_t size)
 {
     wof_chunk_hdr_t *chunk;
+
+    if (ptr == NULL) {
+        return wof_alloc(allocator, size);
+    }
+
+    if (size == 0) {
+        wof_free(allocator, ptr);
+        return NULL;
+    }
 
     chunk = WOF_DATA_TO_CHUNK(ptr);
 
