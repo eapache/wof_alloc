@@ -23,7 +23,7 @@ For a proper understanding of how the allocator works, read the rest of this
 README. In brief though, `wof_alloc` is constant-time unless it needs to grab a
 new block from the OS, the cost of which can be amortized. `wof_free` is always
 constant-time. `wof_realloc` is constant-time if it doesn't have to move the
-block, and is of course just an alloc and a free if it does has to move the
+block, and is of course just a `wof_alloc`, `memcpy`, `wof_free` if it does has to move the
 block.
 
 `wof_free_all` is *very* fast - the design was optimized for this operation,
