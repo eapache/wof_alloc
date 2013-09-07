@@ -10,10 +10,41 @@ The majority of wmem was bog-standard memory-pool code, but there was one
 component that ended up turning into a *very* interesting exercise in
 algorithms and data structures. Within wmem it is simply known as the "block"
 allocator, but it was interesting enough that I extracted it from Wireshark,
-and made it available stand-alone here.
+and made it available stand-alone here. The wheel-of-fortune name will become
+obvious once you understand how the recycler structure works.
 
 It is one C source file that uses nothing but bare-bones standard C90, so it
 should compile on basically any platform in existence.
+
+Behaviour
+---------
+
+For a proper understanding of how the allocator works, read the rest of this
+README. In brief though, `wof_alloc` is constant-time unless it needs to grab a
+new block from the OS, the cost of which can be amortized. `wof_free` is always
+constant-time. `wof_realloc` is constant-time if it doesn't have to move the
+block, and is of course just an alloc and a free if it does has to move the
+block.
+
+`wof_free_all` is *very* fast - the design was optimized for this operation,
+which in most allocators is either unavailable or quite slow. This operation
+does not actually return any memory to the OS, permitting the pool to be
+efficiently reused. `wof_gc` (also very fast) will return what memory it can to
+the OS (so a `wof_free_all` followed by a `wof_gc` will actually return all
+memory to the OS, with the exception of the pool struct itself).
+`wof_allocator_destroy` does this automatically, so you don't have to worry
+about leaking when destroying a pool.
+
+Fragmentation depends heavily on the allocation patterns. It behaves quite well
+(almost on par with more traditional allocators) under the common load of
+fixed-size, short-lived allocs, and very few reallocs. However, it can perform
+as much as 3x worse under many variable-sized reallocs. The best way to tell how
+it will perform for you is, of course, to try it.
+
+In Wireshark, a pool is created, and used for any allocations needed during the
+dissection of a packet, most of which are not explicitly freed even when they
+pass out of scope. When the packet has been dissected, `free_all` is called and
+the same pool is reused for the next packet to arrive.
 
 History
 -------
