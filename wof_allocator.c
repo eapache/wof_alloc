@@ -99,6 +99,10 @@ wof_cycle_recycler(wof_allocator_t *allocator)
 
     chunk = allocator->recycler_head;
 
+    if (chunk == NULL) {
+        return;
+    }
+
     free_chunk = WOF_GET_FREE(chunk);
 
     if (free_chunk->next->len < chunk->len) {
@@ -636,9 +640,7 @@ wof_alloc(wof_allocator_t *allocator, const size_t size)
     wof_split_free_chunk(allocator, chunk, size);
 
     /* Now cycle the recycler */
-    if (allocator->recycler_head) {
-        wof_cycle_recycler(allocator);
-    }
+    wof_cycle_recycler(allocator);
 
     /* mark it as used */
     chunk->used = TRUE;
@@ -669,6 +671,9 @@ wof_free(wof_allocator_t *allocator, void *ptr)
     /* merge it with any other free chunks adjacent to it, so that contiguous
      * free space doesn't get fragmented */
     wof_merge_free(allocator, chunk);
+
+    /* Now cycle the recycler */
+    wof_cycle_recycler(allocator);
 }
 
 void *
@@ -732,6 +737,9 @@ wof_realloc(wof_allocator_t *allocator, void *ptr, const size_t size)
                 tmp->prev = chunk->len;
             }
 
+            /* Now cycle the recycler */
+            wof_cycle_recycler(allocator);
+
             /* And return the same old pointer */
             return ptr;
         }
@@ -746,12 +754,18 @@ wof_realloc(wof_allocator_t *allocator, void *ptr, const size_t size)
             memcpy(newptr, ptr, WOF_CHUNK_DATA_LEN(chunk));
             wof_free(allocator, ptr);
 
+            /* No need to cycle the recycler, alloc and free both did that
+             * already */
+
             return newptr;
         }
     }
     else if (size < WOF_CHUNK_DATA_LEN(chunk)) {
         /* shrink */
         wof_split_used_chunk(allocator, chunk, size);
+
+        /* Now cycle the recycler */
+        wof_cycle_recycler(allocator);
 
         return ptr;
     }
