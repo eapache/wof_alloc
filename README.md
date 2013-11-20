@@ -101,7 +101,7 @@ something like this:
 
 When allocating, a free chunk is found (more on that later) and split into
 two chunks: the first of the requested size and the second containing any
-remaining free. The first is marked used and returned to the caller.
+remaining memory. The first is marked used and returned to the caller.
 
 When freeing, the chunk in question is marked as free. Its neighbouring
 chunks are then checked; if either of them are free, the consecutive free
