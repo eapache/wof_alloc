@@ -82,6 +82,12 @@ typedef struct _wof_free_hdr_t {
 /* Handy macro for accessing the free-header of a chunk */
 #define WOF_GET_FREE(CHUNK) ((wof_free_hdr_t*)WOF_CHUNK_TO_DATA(CHUNK))
 
+/* The size of the free header does not need to be aligned, as it is never used
+ * in any way that would affect the alignment of the memory returned from
+ * wof_alloc. This macro is defined just for consistency with all the other
+ * WOF_*_SIZE macros (which do need to be aligned). */
+#define WOF_FREE_HEADER_SIZE sizeof(wof_free_hdr_t)
+
 struct _wof_allocator_t {
     wof_block_hdr_t *block_list;
     wof_chunk_hdr_t *master_head;
@@ -129,7 +135,7 @@ wof_add_to_recycler(wof_allocator_t *allocator,
 {
     wof_free_hdr_t *free_chunk;
 
-    if (WOF_CHUNK_DATA_LEN(chunk) < sizeof(wof_free_hdr_t)) {
+    if (WOF_CHUNK_DATA_LEN(chunk) < WOF_FREE_HEADER_SIZE) {
         return;
     }
 
@@ -232,7 +238,7 @@ wof_merge_free(wof_allocator_t *allocator,
      * need to know about the left chunk before we decide what goes where). */
     tmp = WOF_CHUNK_NEXT(chunk);
     if (tmp && !tmp->used) {
-        if (WOF_CHUNK_DATA_LEN(tmp) >= sizeof(wof_free_hdr_t)) {
+        if (WOF_CHUNK_DATA_LEN(tmp) >= WOF_FREE_HEADER_SIZE) {
             right_free = tmp;
         }
         chunk->len += tmp->len;
@@ -244,7 +250,7 @@ wof_merge_free(wof_allocator_t *allocator,
      * hold a free-header. */
     tmp = WOF_CHUNK_PREV(chunk);
     if (tmp && !tmp->used) {
-        if (WOF_CHUNK_DATA_LEN(tmp) >= sizeof(wof_free_hdr_t)) {
+        if (WOF_CHUNK_DATA_LEN(tmp) >= WOF_FREE_HEADER_SIZE) {
             left_free = tmp;
         }
         tmp->len += chunk->len;
@@ -307,7 +313,7 @@ wof_split_free_chunk(wof_allocator_t *allocator,
 
     aligned_size = WOF_ALIGN_SIZE(size) + WOF_CHUNK_HEADER_SIZE;
 
-    if (WOF_CHUNK_DATA_LEN(chunk) < aligned_size + sizeof(wof_free_hdr_t)) {
+    if (WOF_CHUNK_DATA_LEN(chunk) < aligned_size + WOF_FREE_HEADER_SIZE) {
         /* If the available space is not enought to store all of
          * (hdr + requested size + alignment padding + hdr + free-header) then
          * just remove the current chunk from the free list and return, since we
