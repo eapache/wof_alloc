@@ -61,9 +61,6 @@ typedef struct _wof_chunk_hdr_t {
 
 #define WOF_CHUNK_HEADER_SIZE WOF_ALIGN_SIZE(sizeof(wof_chunk_hdr_t))
 
-#define WOF_BLOCK_MAX_ALLOC_SIZE (WOF_BLOCK_SIZE - \
-        (WOF_BLOCK_HEADER_SIZE + WOF_CHUNK_HEADER_SIZE))
-
 /* other handy chunk macros */
 #define WOF_CHUNK_TO_DATA(CHUNK)  ((void*)((unsigned char*)(CHUNK) + WOF_CHUNK_HEADER_SIZE))
 #define WOF_DATA_TO_CHUNK(DATA)   ((wof_chunk_hdr_t*)((unsigned char*)(DATA) - WOF_CHUNK_HEADER_SIZE))
@@ -73,6 +70,9 @@ typedef struct _wof_chunk_hdr_t {
 #define WOF_BLOCK_HEADER_SIZE     WOF_ALIGN_SIZE(sizeof(wof_block_hdr_t))
 #define WOF_BLOCK_TO_CHUNK(BLOCK) ((wof_chunk_hdr_t*)((unsigned char*)(BLOCK) + WOF_BLOCK_HEADER_SIZE))
 #define WOF_CHUNK_TO_BLOCK(CHUNK) ((wof_block_hdr_t*)((unsigned char*)(CHUNK) - WOF_BLOCK_HEADER_SIZE))
+
+#define WOF_BLOCK_MAX_ALLOC_SIZE (WOF_BLOCK_SIZE - \
+        (WOF_BLOCK_HEADER_SIZE + WOF_CHUNK_HEADER_SIZE))
 
 /* This is what the 'data' section of a chunk contains if it is free. */
 typedef struct _wof_free_hdr_t {
