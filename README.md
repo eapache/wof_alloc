@@ -4,7 +4,7 @@ Wheel-of-Fortune Memory Allocator
 A little while ago, the [Wireshark Project](https://www.wireshark.org/) was in
 need of a new memory management framework to replace its aging 'emem' framework.
 Nothing available seemed to suit, so I (mostly) wrote one from scratch, called
-[wmem](https://anonsvn.wireshark.org/viewvc/trunk/doc/README.wmem?view=markup).
+[wmem](https://code.wireshark.org/review/gitweb?p=wireshark.git;a=blob;f=doc/README.wmem).
 
 The majority of wmem was bog-standard memory-pool code, but there was one
 component that ended up turning into a *very* interesting exercise in
