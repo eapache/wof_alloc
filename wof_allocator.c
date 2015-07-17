@@ -321,7 +321,7 @@ wof_split_free_chunk(wof_allocator_t *allocator,
         if (chunk == allocator->master_head) {
             wof_pop_master(allocator);
         }
-        else {
+        else if (WOF_CHUNK_DATA_LEN(chunk) >= sizeof(wof_free_hdr_t)) {
             wof_remove_from_recycler(allocator, chunk);
         }
         return;
